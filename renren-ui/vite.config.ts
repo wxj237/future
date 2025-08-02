@@ -43,7 +43,6 @@ export default (config: UserConfig): UserConfigExport => {
       rollupOptions: {
         output: {
           manualChunks: {
-            quill: ["quill"],
             lodash: ["lodash"],
             vlib: ["vue", "vue-router", "element-plus"]
           }

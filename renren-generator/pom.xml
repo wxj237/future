@@ -9,22 +9,21 @@
 	<parent>
 		<groupId>io.renren</groupId>
 		<artifactId>renren-security</artifactId>
-		<version>5.4.0</version>
+		<version>5.5.0</version>
 	</parent>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>17</java.version>
-		<mybatis.spring.boot.version>3.0.3</mybatis.spring.boot.version>
 		<pagehelper.spring.boot.version>1.4.7</pagehelper.spring.boot.version>
-		<druid.version>1.2.21</druid.version>
+		<druid.version>1.2.23</druid.version>
 		<commons.configuration.version>1.10</commons.configuration.version>
 		<velocity.version>1.7</velocity.version>
 		<mssql.version>4.0</mssql.version>
 		<oracle.version>11.2.0.3</oracle.version>
 		<dameng.version>8.1.2.141</dameng.version>
-		<hutool.version>5.8.22</hutool.version>
+		<hutool.version>5.8.29</hutool.version>
 	</properties>
 
 	<dependencies>
@@ -40,7 +39,7 @@
 		<dependency>
 			<groupId>org.mybatis.spring.boot</groupId>
 			<artifactId>mybatis-spring-boot-starter</artifactId>
-			<version>${mybatis.spring.boot.version}</version>
+			<version>3.0.4</version>
 		</dependency>
 		<dependency>
 			<groupId>com.github.pagehelper</groupId>
