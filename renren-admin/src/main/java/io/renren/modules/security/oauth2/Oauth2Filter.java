@@ -18,10 +18,10 @@ import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.apache.http.HttpStatus;
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.web.filter.authc.AuthenticatingFilter;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RequestMethod;
 
 import java.io.IOException;
@@ -83,7 +83,7 @@ public class Oauth2Filter extends AuthenticatingFilter {
         try {
             //处理登录失败的异常
             Throwable throwable = e.getCause() == null ? e : e.getCause();
-            Result r = new Result().error(HttpStatus.SC_UNAUTHORIZED, throwable.getMessage());
+            Result r = new Result().error(HttpStatus.UNAUTHORIZED.value(), throwable.getMessage());
 
             String json = JsonUtils.toJsonString(r);
             httpResponse.getWriter().print(json);
