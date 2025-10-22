@@ -42,6 +42,20 @@ const routes: Array<RouteRecordRaw> = [
     component: Error,
     meta: { title: "错误页面", isNavigationMenu: false }
   },
+  // 收件箱路由
+  {
+    path: "/inbox",
+    component: Layout,
+    redirect: "/inbox/index",
+    meta: { title: "收件箱", icon: "icon-message", requiresAuth: true },
+    children: [
+      {
+        path: "/inbox/index",
+        component: () => import("@/views/sys/inbox.vue"),
+        meta: { title: "收件箱", icon: "icon-inbox" }
+      }
+    ]
+  },
   {
     path: "/:path(.*)*",
     redirect: { path: "/error", query: { to: 404 }, replace: true },

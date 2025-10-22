@@ -321,6 +321,18 @@ INSERT INTO sys_menu (id, pid, name, url, permissions, menu_type, icon, sort, cr
 INSERT INTO sys_menu (id, pid, name, url, permissions, menu_type, icon, sort, creator, create_date, updater, update_date) VALUES (1067246875800000061, 1067246875800000040, '删除', '', 'sys:params:delete', 1, '', 3, 1067246875800000001, now(), 1067246875800000001, now());
 INSERT INTO sys_menu (id, pid, name, url, permissions, menu_type, icon, sort, creator, create_date, updater, update_date) VALUES (1156748733921165314, 1067246875800000053, '接口文档', '{{ApiUrl}}/doc.html', '', 0, 'icon-file-word', 1, 1067246875800000001, now(), 1067246875800000001, now());
 
+-- 考勤管理主菜单
+INSERT INTO sys_menu (id, pid, name, url, permissions, menu_type, icon, sort, creator, create_date, updater, update_date) 
+VALUES (1067246875800000070, 0, '考勤管理', NULL, NULL, 0, 'icon-clock-circle', 4, 1067246875800000001, now(), 1067246875800000001, now());
+
+-- 每日计划子菜单
+INSERT INTO sys_menu (id, pid, name, url, permissions, menu_type, icon, sort, creator, create_date, updater, update_date) 
+VALUES (1067246875800000071, 1067246875800000070, '每日计划', 'attendance/daily-plan', NULL, 0, 'icon-calendar', 0, 1067246875800000001, now(), 1067246875800000001, now());
+
+-- 周报管理子菜单
+INSERT INTO sys_menu (id, pid, name, url, permissions, menu_type, icon, sort, creator, create_date, updater, update_date) 
+VALUES (1067246875800000072, 1067246875800000070, '周报管理', 'attendance/weekly-report', NULL, 0, 'icon-file-text', 1, 1067246875800000001, now(), 1067246875800000001, now());
+
 
 INSERT INTO sys_dept(id, pid, pids, name, sort, creator, create_date, updater, update_date) VALUES (1067246875800000062, 1067246875800000063, '1067246875800000066,1067246875800000063', '技术部', 2, 1067246875800000001, now(), 1067246875800000001, now());
 INSERT INTO sys_dept(id, pid, pids, name, sort, creator, create_date, updater, update_date) VALUES (1067246875800000063, 1067246875800000066, '1067246875800000066', '长沙分公司', 1, 1067246875800000001, now(), 1067246875800000001, now());
@@ -502,3 +514,62 @@ CREATE INDEX IDX_QRTZ_FT_J_G ON QRTZ_FIRED_TRIGGERS(SCHED_NAME,JOB_NAME,JOB_GROU
 CREATE INDEX IDX_QRTZ_FT_JG ON QRTZ_FIRED_TRIGGERS(SCHED_NAME,JOB_GROUP);
 CREATE INDEX IDX_QRTZ_FT_T_G ON QRTZ_FIRED_TRIGGERS(SCHED_NAME,TRIGGER_NAME,TRIGGER_GROUP);
 CREATE INDEX IDX_QRTZ_FT_TG ON QRTZ_FIRED_TRIGGERS(SCHED_NAME,TRIGGER_GROUP);
+   -- 在现有表结构之后追加以下内容：
+
+   -- 考勤记录表
+   CREATE TABLE attendance_record (
+     id bigint NOT NULL COMMENT '主键ID',
+     user_id bigint NOT NULL COMMENT '用户ID',
+     sign_in_time datetime COMMENT '签到时间',
+     sign_out_time datetime COMMENT '签退时间',
+     sign_in_type varchar(20) COMMENT '签到类型(manual-手动签到, location-定位签到)',
+     sign_in_location varchar(200) COMMENT '签到位置信息',
+     sign_out_location varchar(200) COMMENT '签退位置信息',
+     status tinyint unsigned DEFAULT 0 COMMENT '状态(0-未签退, 1-已签退)',
+     create_time datetime COMMENT '创建时间',
+     PRIMARY KEY (id),
+     KEY idx_user_id (user_id),
+     KEY idx_sign_in_time (sign_in_time)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='考勤记录表';
+
+   -- 每日工作计划表
+   CREATE TABLE daily_plan (
+     id bigint NOT NULL COMMENT '主键ID',
+     user_id bigint NOT NULL COMMENT '用户ID',
+     plan_date date COMMENT '计划日期',
+     content text COMMENT '工作内容',
+     completion text COMMENT '完成情况',
+     create_time datetime COMMENT '创建时间',
+     update_time datetime COMMENT '更新时间',
+     PRIMARY KEY (id),
+     KEY idx_user_id (user_id),
+     KEY idx_plan_date (plan_date)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每日工作计划表';
+
+   -- 周报表
+   CREATE TABLE weekly_report (
+     id bigint NOT NULL COMMENT '主键ID',
+     user_id bigint NOT NULL COMMENT '用户ID',
+     start_date date COMMENT '周报开始日期',
+     end_date date COMMENT '周报结束日期',
+     content text COMMENT '周报内容',
+     create_time datetime COMMENT '创建时间',
+     update_time datetime COMMENT '更新时间',
+     PRIMARY KEY (id),
+     KEY idx_user_id (user_id),
+     KEY idx_start_date (start_date)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='周报表';
+  
+  -- 添加测试数据
+  INSERT INTO daily_plan (id, user_id, plan_date, content, completion, create_time, update_time) VALUES 
+  (1, 1067246875800000001, '2023-01-01', '今天完成了项目需求分析和设计文档编写', '已完成需求分析和设计文档编写', now(), now()),
+  (2, 1067246875800000001, '2023-01-02', '今天完成了系统架构设计和数据库设计', '已完成系统架构设计和数据库设计', now(), now()),
+  (3, 1067246875800000001, '2023-01-03', '今天完成了核心模块编码工作', '已完成核心模块编码工作', now(), now());
+  
+  CREATE TABLE login_list (
+    id bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    student_id varchar(50) NOT NULL COMMENT '学号',
+    name varchar(100) NOT NULL COMMENT '姓名',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_student_id (student_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='登录名单表';

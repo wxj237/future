@@ -47,8 +47,8 @@ public class CaptchaServiceImpl implements CaptchaService {
 
         //生成验证码
         SpecCaptcha captcha = new SpecCaptcha(150, 40);
-        captcha.setLen(5);
-        captcha.setCharType(Captcha.TYPE_DEFAULT);
+        captcha.setLen(4);  // 改为4位
+        // 使用默认字符类型（包含字母和数字），避免使用不存在的常量
         captcha.out(response.getOutputStream());
 
         //保存到缓存

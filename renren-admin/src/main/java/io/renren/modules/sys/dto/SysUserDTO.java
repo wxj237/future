@@ -88,5 +88,118 @@ public class SysUserDTO implements Serializable {
 
 	@Schema(title = "部门名称")
 	private String deptName;
-
+	
+	// 显式添加getter和setter方法，解决Lombok未被正确识别的问题
+	
+	public Long getId() {
+		return id;
+	}
+	
+	public void setId(Long id) {
+		this.id = id;
+	}
+	
+	public String getUsername() {
+		return username;
+	}
+	
+	public void setUsername(String username) {
+		this.username = username;
+	}
+	
+	public String getPassword() {
+		return password;
+	}
+	
+	public void setPassword(String password) {
+		this.password = password;
+	}
+	
+	public String getRealName() {
+		return realName;
+	}
+	
+	public void setRealName(String realName) {
+		this.realName = realName;
+	}
+	
+	public Integer getStatus() {
+		return status;
+	}
+	
+	public void setStatus(Integer status) {
+		this.status = status;
+	}
+	
+	public Date getCreateDate() {
+		return createDate;
+	}
+	
+	public void setCreateDate(Date createDate) {
+		this.createDate = createDate;
+	}
+	
+	public Long getDeptId() {
+		return deptId;
+	}
+	
+	public void setDeptId(Long deptId) {
+		this.deptId = deptId;
+	}
+	
+	public String getMobile() {
+		return mobile;
+	}
+	
+	public void setMobile(String mobile) {
+		this.mobile = mobile;
+	}
+	
+	public String getEmail() {
+		return email;
+	}
+	
+	public void setEmail(String email) {
+		this.email = email;
+	}
+	
+	public Integer getGender() {
+		return gender;
+	}
+	
+	public void setGender(Integer gender) {
+		this.gender = gender;
+	}
+	
+	public String getHeadUrl() {
+		return headUrl;
+	}
+	
+	public void setHeadUrl(String headUrl) {
+		this.headUrl = headUrl;
+	}
+	
+	public Integer getSuperAdmin() {
+		return superAdmin;
+	}
+	
+	public void setSuperAdmin(Integer superAdmin) {
+		this.superAdmin = superAdmin;
+	}
+	
+	public List<Long> getRoleIdList() {
+		return roleIdList;
+	}
+	
+	public void setRoleIdList(List<Long> roleIdList) {
+		this.roleIdList = roleIdList;
+	}
+	
+	public String getDeptName() {
+		return deptName;
+	}
+	
+	public void setDeptName(String deptName) {
+		this.deptName = deptName;
+	}
 }

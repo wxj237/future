@@ -67,5 +67,19 @@ export const removeCache = (key: string, isSessionStorage?: boolean): void => {
 };
 
 export const getToken = (): string => {
-  return getCache(CacheToken, { isSessionStorage: true }, {})["token"];
+  const cache = getCache(CacheToken, { isSessionStorage: true });
+  if (!cache) return "";
+
+  // 如果缓存值是字符串类型，直接返回该字符串（即 token）
+  if (typeof cache === "string") {
+    return cache;
+  }
+
+  // 如果缓存值是对象并且包含 token 字段，则返回 token
+  if (typeof cache === "object" && cache.token) {
+    return cache.token;
+  }
+
+  return "";  // 如果没有 token，则返回空字符串
 };
+

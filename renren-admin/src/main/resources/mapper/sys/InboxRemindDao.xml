@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.renren.modules.sys.dao.InboxRemindDao">
+
+    <select id="getUserReminds" resultType="io.renren.modules.sys.entity.InboxRemindEntity">
+        SELECT * FROM sys_inbox_remind
+        WHERE user_id = #{userId}
+        ORDER BY remind_time DESC
+    </select>
+
+    <select id="getUnreadRemindCount" resultType="int">
+        SELECT COUNT(*) FROM sys_inbox_remind
+        WHERE user_id = #{userId} AND read_status = 0
+    </select>
+
+    <update id="markAsRead">
+        UPDATE sys_inbox_remind SET read_status = 1 WHERE id = #{remindId}
+    </update>
+
+    <update id="markAllAsRead">
+        UPDATE sys_inbox_remind SET read_status = 1
+        WHERE user_id = #{userId} AND read_status = 0
+    </update>
+
+</mapper>

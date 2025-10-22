@@ -64,6 +64,7 @@ public class ShiroConfig {
         filterMap.put("/webjars/**", "anon");
         filterMap.put("/druid/**", "anon");
         filterMap.put("/login", "anon");
+        filterMap.put("/simplifiedLogin", "anon"); // 简化登录接口
         filterMap.put("/swagger/**", "anon");
         filterMap.put("/v3/api-docs/**", "anon");
         filterMap.put("/doc.html", "anon");
@@ -71,6 +72,18 @@ public class ShiroConfig {
         filterMap.put("/captcha", "anon");
         filterMap.put("/favicon.ico", "anon");
         filterMap.put("/", "anon");
+        filterMap.put("/sys/user/register", "anon"); // 允许用户注册
+// 在filterMap中添加以下内容
+        filterMap.put("/simplifiedLogin", "anon"); // 简化登录接口
+        filterMap.put("/loginList/import", "authc"); // 批量导入需要认证
+        filterMap.put("/loginList/list", "authc"); // 查看登录名单需要认证
+
+        // === 考勤模块测试接口匿名访问 ===
+        filterMap.put("/test/**", "anon");
+        filterMap.put("/attendance/attendance/test", "anon");
+        // =========================
+
+        filterMap.put("/sys/user/import", "authc"); // 批量导入需要认证
         filterMap.put("/**", "oauth2");
         shiroFilter.setFilterChainDefinitionMap(filterMap);
 

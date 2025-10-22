@@ -89,7 +89,8 @@ const onLogin = () => {
         .then((res) => {
           state.loading = false;
           if (res.code === 0) {
-            setCache(CacheToken, res.data, true);
+            const tokenData = typeof res.data === "string" ? { token: res.data } : res.data;
+            setCache(CacheToken, tokenData, true);
             ElMessage.success("登录成功");
             router.push("/");
           } else {
