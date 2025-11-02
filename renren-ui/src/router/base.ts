@@ -21,6 +21,52 @@ const routes: Array<RouteRecordRaw> = [
       }
     ]
   },
+
+  /**
+   * ✅ 定位签到模块
+   * 包含两个子页面：
+   *  - /attendance/geo-sign   普通用户签到
+   *  - /attendance/geo-admin  管理员查看记录
+   */
+  {
+    path: "/attendance",
+    component: Layout,
+    redirect: "/attendance/geo-admin",
+    meta: { title: "定位签到", icon: "icon-location", requiresAuth: true },
+    children: [
+      {
+        path: "/attendance/geo-sign",
+        component: () => import("@/views/attendance/geo-sign.vue"),
+        meta: { title: "定位签到", icon: "icon-location", requiresAuth: true }
+      },
+      {
+        path: "/attendance/geo-admin",
+        component: () => import("@/views/attendance/geo-admin.vue"),
+        meta: { title: "签到记录（管理员）", icon: "icon-list", requiresAuth: true }
+      }
+    ]
+  },
+
+  /**
+   * ✅ 收件箱模块（原有）
+   */
+  {
+    path: "/inbox",
+    component: Layout,
+    redirect: "/inbox/index",
+    meta: { title: "收件箱", icon: "icon-message", requiresAuth: true },
+    children: [
+      {
+        path: "/inbox/index",
+        component: () => import("@/views/sys/inbox.vue"),
+        meta: { title: "收件箱", icon: "icon-inbox" }
+      }
+    ]
+  },
+
+  /**
+   * ✅ 登录 / 密码修改 / iframe / 错误页（保持原逻辑）
+   */
   {
     path: "/login",
     component: Login,
@@ -42,20 +88,10 @@ const routes: Array<RouteRecordRaw> = [
     component: Error,
     meta: { title: "错误页面", isNavigationMenu: false }
   },
-  // 收件箱路由
-  {
-    path: "/inbox",
-    component: Layout,
-    redirect: "/inbox/index",
-    meta: { title: "收件箱", icon: "icon-message", requiresAuth: true },
-    children: [
-      {
-        path: "/inbox/index",
-        component: () => import("@/views/sys/inbox.vue"),
-        meta: { title: "收件箱", icon: "icon-inbox" }
-      }
-    ]
-  },
+
+  /**
+   * ✅ 404 兜底
+   */
   {
     path: "/:path(.*)*",
     redirect: { path: "/error", query: { to: 404 }, replace: true },

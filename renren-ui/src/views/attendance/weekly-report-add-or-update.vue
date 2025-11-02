@@ -1,269 +1,163 @@
 <template>
-  <el-dialog
-    v-model="dialogVisible"
-    :title="!state.dataForm.id ? '新增' : '修改'"
-    width="700px"
-    :close-on-click-modal="false"
-    @close="closeDialog"
-  >
-    <el-form
-      :model="state.dataForm"
-      :rules="state.rules"
-      ref="dataFormRef"
-      label-width="100px"
-    >
-      <el-form-item label="用户ID" prop="userId">
-        <el-input v-model="state.dataForm.userId" placeholder="自动获取用户ID" readonly></el-input>
+  <el-dialog v-model="visible" :title="title" width="720px" :close-on-click-modal="false">
+    <el-form :model="form" :rules="rules" ref="formRef" label-width="96px">
+      <el-form-item label="用户ID" prop="userId" v-if="!!form.userId">
+        <el-input v-model="form.userId" placeholder="仅管理员编辑他人数据时使用" />
       </el-form-item>
-      <el-form-item label="用户名" prop="username">
-        <el-input v-model="state.dataForm.username" placeholder="自动获取用户名" readonly></el-input>
-      </el-form-item>
-      <el-form-item label="周开始日期" prop="weekStartDate">
+
+      <el-form-item label="周起止" required>
         <el-date-picker
-          v-model="state.dataForm.weekStartDate"
-          type="date"
-          placeholder="选择周开始日期"
+          v-model="weekRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
           value-format="YYYY-MM-DD"
-          format="YYYY-MM-DD"
-          style="width: 100%"
-          @change="calculateWeekEndDate">
-        </el-date-picker>
+          unlink-panels
+          style="width: 320px"
+        />
       </el-form-item>
-      <el-form-item label="周结束日期" prop="weekEndDate">
-        <el-date-picker
-          v-model="state.dataForm.weekEndDate"
-          type="date"
-          placeholder="自动计算周结束日期"
-          value-format="YYYY-MM-DD"
-          format="YYYY-MM-DD"
-          style="width: 100%"
-          readonly>
-        </el-date-picker>
-      </el-form-item>
+
       <el-form-item label="本周总结" prop="weeklySummary">
-        <el-input
-          v-model="state.dataForm.weeklySummary"
-          type="textarea"
-          :rows="4"
-          placeholder="请输入本周工作总结"
-          maxlength="1000"
-          show-word-limit></el-input>
+        <el-input v-model="form.weeklySummary" type="textarea" :rows="4" placeholder="本周工作总结" />
       </el-form-item>
+
       <el-form-item label="下周计划" prop="nextWeekPlan">
-        <el-input
-          v-model="state.dataForm.nextWeekPlan"
-          type="textarea"
-          :rows="4"
-          placeholder="请输入下周工作计划"
-          maxlength="1000"
-          show-word-limit></el-input>
+        <el-input v-model="form.nextWeekPlan" type="textarea" :rows="4" placeholder="下周计划" />
       </el-form-item>
-      <el-form-item label="遇到的问题" prop="problems">
-        <el-input
-          v-model="state.dataForm.problems"
-          type="textarea"
-          :rows="3"
-          placeholder="请输入本周遇到的问题"
-          maxlength="500"
-          show-word-limit></el-input>
+
+      <el-form-item label="存在问题" prop="problems">
+        <el-input v-model="form.problems" type="textarea" :rows="3" placeholder="遇到的问题" />
       </el-form-item>
+
       <el-form-item label="建议" prop="suggestions">
-        <el-input
-          v-model="state.dataForm.suggestions"
-          type="textarea"
-          :rows="3"
-          placeholder="请输入工作建议"
-          maxlength="500"
-          show-word-limit></el-input>
+        <el-input v-model="form.suggestions" type="textarea" :rows="3" placeholder="改进建议" />
       </el-form-item>
     </el-form>
+
     <template #footer>
-      <el-button @click="closeDialog">取消</el-button>
-      <el-button type="primary" @click="state.submitHandle()" :loading="submitButtonLoading">提交</el-button>
+      <el-button @click="visible = false">取 消</el-button>
+      <el-button type="primary" @click="submit">保 存</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script lang="ts" setup>
-import { reactive, ref, computed, nextTick } from "vue";
-import { ElMessage, type FormInstance, type FormRules } from "element-plus";
-import baseService from '@/service/baseService';
-import { useAppStore } from '@/store';
+import { ref, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
+import baseService from '@/service/baseService'
 
-const dialogVisible = ref(false);
-const submitButtonLoading = ref(false);
-const dataFormRef = ref<FormInstance>();
+const emit = defineEmits(['refreshDataList'])
 
-const emit = defineEmits(["refreshDataList", "close"]);
+const visible = ref(false)
+const title = ref('新增周报')
+const formRef = ref()
 
-// 获取当前登录用户信息
-const appStore = useAppStore();
-const currentUser = computed(() => appStore.state.user);
+const form = reactive<any>({
+  id: undefined,
+  userId: undefined,
+  weekStartDate: '',
+  weekEndDate: '',
+  weeklySummary: '',
+  nextWeekPlan: '',
+  problems: '',
+  suggestions: ''
+})
 
-const state = reactive({
-  dataForm: {
-    id: null,
-    userId: null as number | null,
-    username: '',
-    weekStartDate: null,
-    weekEndDate: null,
-    weeklySummary: '',
-    nextWeekPlan: '',
-    problems: '',
-    suggestions: ''
-  },
+const weekRange = ref<string[]>([])
+const rules = {}
 
-  rules: {
-    weekStartDate: [
-      { required: true, message: '请选择周开始日期', trigger: 'change' }
-    ],
-    weekEndDate: [
-      { required: true, message: '周结束日期不能为空', trigger: 'change' }
-    ],
-    weeklySummary: [
-      { required: true, message: '请输入本周总结', trigger: 'blur' }
-    ]
-  } as FormRules,
+/** 统一成功判断 */
+function isOk(res: any) {
+  return !!res && (res.code === 0 || res.code === 200 || res.success === true || res.status === 0)
+}
 
-  submitHandle: async () => {
-    if (!dataFormRef.value) return;
+/** 用行数据直接回填（避免 info 500） */
+function fillFromRow(row: any) {
+  form.id = row.id
+  form.userId = row.userId
+  form.weekStartDate = fmtDate(row.weekStartDate)
+  form.weekEndDate = fmtDate(row.weekEndDate)
+  form.weeklySummary = row.weeklySummary || ''
+  form.nextWeekPlan = row.nextWeekPlan || ''
+  form.problems = row.problems || ''
+  form.suggestions = row.suggestions || ''
+  weekRange.value = [form.weekStartDate, form.weekEndDate]
+}
 
-    const valid = await dataFormRef.value.validate().catch(() => false);
-    if (!valid) {
-      ElMessage.warning('请完善表单信息');
-      return;
-    }
-
-    submitButtonLoading.value = true;
-
-    try {
-      const submitData = {
-        ...state.dataForm
-      };
-
-      console.log('提交周报数据:', JSON.stringify(submitData, null, 2));
-
-      const url = state.dataForm.id ? "/attendance/weeklyreport/update" : "/attendance/weeklyreport";
-      const response = await baseService.post(url, submitData);
-
-      console.log('完整响应:', response);
-
-      if (response && response.code === 0) {
-        ElMessage.success(state.dataForm.id ? "修改成功!" : "添加成功!");
-        closeDialog();
-      } else {
-        const errorMsg = response?.msg || response?.message || "操作失败";
-        ElMessage.error(errorMsg);
-      }
-    } catch (error: any) {
-      console.error("保存失败:", error);
-      let errorMsg = "服务器内部异常";
-      if (error.response) {
-        const responseData = error.response.data;
-        errorMsg = responseData?.msg || responseData?.message || error.response.statusText;
-      } else if (error.message) {
-        errorMsg = error.message;
-      }
-      ElMessage.error(`保存失败: ${errorMsg}`);
-    } finally {
-      submitButtonLoading.value = false;
-    }
+/** 对外： open（支持 row 或 id） */
+function init(payload?: number | Record<string, any>) {
+  reset()
+  if (!payload) {
+    title.value = '新增周报'
+    visible.value = true
+    return
   }
-});
-
-// 计算周结束日期（周开始日期 + 6天）
-const calculateWeekEndDate = (startDate: string) => {
-  if (!startDate) return;
-
-  const start = new Date(startDate);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-
-  const year = end.getFullYear();
-  const month = String(end.getMonth() + 1).padStart(2, '0');
-  const day = String(end.getDate()).padStart(2, '0');
-
-  state.dataForm.weekEndDate = `${year}-${month}-${day}`;
-};
-
-// 初始化数据
-const init = (id?: number) => {
-  console.log('初始化周报弹窗，ID:', id);
-  console.log('当前用户:', currentUser.value);
-
-  try {
-    if (id) {
-      // 编辑模式：获取现有数据
-      baseService.get(`/attendance/weeklyreport/info/${id}`)
-        .then((res) => {
-          if (res.code === 0) {
-            state.dataForm = {
-              ...res.data,
-              weekStartDate: res.data.weekStartDate || null,
-              weekEndDate: res.data.weekEndDate || null
-            };
-            dialogVisible.value = true;
-          } else {
-            ElMessage.error(res.msg || "获取数据失败");
-          }
-        })
-        .catch((error) => {
-          console.error("获取数据失败:", error);
-          ElMessage.error("获取数据失败: " + error.message);
-        });
+  if (typeof payload === 'object') {
+    title.value = '修改周报'
+    fillFromRow(payload)
+    visible.value = true
+    return
+  }
+  title.value = '修改周报'
+  const id = payload
+  baseService.get('/attendance/weeklyplan/info', { id }).then((res: any) => {
+    if (isOk(res) && res.data) {
+      fillFromRow(res.data)
+      visible.value = true
     } else {
-      // 新增模式：自动设置用户信息和默认日期
-      const userId = currentUser.value?.id || currentUser.value?.userId;
-      const username = currentUser.value?.username || currentUser.value?.name || '未知用户';
-
-      // 设置默认日期为本周一和本周日
-      const today = new Date();
-      const dayOfWeek = today.getDay();
-      const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      const monday = new Date(today);
-      monday.setDate(today.getDate() + diffToMonday);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-
-      const formatDate = (date: Date) => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      };
-
-      state.dataForm = {
-        id: null,
-        userId: userId,
-        username: username,
-        weekStartDate: formatDate(monday),
-        weekEndDate: formatDate(sunday),
-        weeklySummary: '',
-        nextWeekPlan: '',
-        problems: '',
-        suggestions: ''
-      };
-
-      nextTick(() => {
-        if (dataFormRef.value) {
-          dataFormRef.value.clearValidate();
-        }
-        dialogVisible.value = true;
-      });
+      ElMessage.error(res.msg || '获取周报详情失败')
     }
-  } catch (error) {
-    console.error('初始化失败:', error);
-    ElMessage.error('初始化失败');
+  }).catch((e: any) => {
+    console.error(e)
+    ElMessage.error('网络异常或服务器错误')
+  })
+}
+
+/** 提交（新增或更新，后端 upsert） */
+function submit() {
+  if (!weekRange.value || weekRange.value.length !== 2) {
+    ElMessage.warning('请选择周起止日期')
+    return
   }
-};
+  form.weekStartDate = weekRange.value[0]
+  form.weekEndDate = weekRange.value[1]
+  baseService.post('/attendance/weeklyplan', { ...form }).then((res: any) => {
+    if (isOk(res)) {
+      ElMessage.success('保存成功')
+      visible.value = false
+      emit('refreshDataList')
+    } else {
+      ElMessage.error(res.msg || '保存失败')
+    }
+  }).catch((e: any) => {
+    console.error(e)
+    ElMessage.error('网络异常或服务器错误')
+  })
+}
 
-const closeDialog = () => {
-  dialogVisible.value = false;
-  emit("refreshDataList");
-  emit("close");
-};
+/** 工具 */
+function reset() {
+  form.id = undefined
+  form.userId = undefined
+  form.weekStartDate = ''
+  form.weekEndDate = ''
+  form.weeklySummary = ''
+  form.nextWeekPlan = ''
+  form.problems = ''
+  form.suggestions = ''
+  weekRange.value = []
+}
+function fmtDate(d: string | Date) {
+  if (!d) return ''
+  const s = typeof d === 'string' ? d : (d as Date).toString()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  return s.replace('T', ' ').split(' ')[0] || ''
+}
 
-defineExpose({
-  init
-});
+defineExpose({ init })
 </script>
+
+<style scoped>
+/* 可按需补充样式 */
+</style>

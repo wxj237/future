@@ -8,29 +8,69 @@
       <div class="rr-login-right">
         <div class="rr-login-right-main">
           <h4 class="rr-login-right-main-title">登录</h4>
-          <el-form ref="formRef" label-width="80px" :status-icon="true" :model="login" :rules="rules" @keyup.enter="onLogin">
+          <el-form
+            ref="formRef"
+            label-width="80px"
+            :status-icon="true"
+            :model="login"
+            :rules="rules"
+            @keyup.enter="onLogin"
+          >
             <el-form-item label-width="0" prop="username">
-              <el-input v-model="login.username" placeholder="用户名" prefix-icon="user" autocomplete="off"></el-input>
+              <el-input
+                v-model="login.username"
+                placeholder="用户名"
+                prefix-icon="user"
+                autocomplete="off"
+              />
             </el-form-item>
             <el-form-item label-width="0" prop="password">
-              <el-input placeholder="密码" v-model="login.password" prefix-icon="lock" autocomplete="off" show-password></el-input>
+              <el-input
+                placeholder="密码"
+                v-model="login.password"
+                prefix-icon="lock"
+                autocomplete="off"
+                show-password
+              />
             </el-form-item>
             <el-form-item label-width="0" prop="captcha">
               <el-space class="rr-login-right-main-code">
-                <el-input v-model="login.captcha" placeholder="验证码" prefix-icon="first-aid-kit"></el-input>
-                <img style="vertical-align: middle; height: 40px; cursor: pointer" :src="state.captchaUrl" @click="onRefreshCode" alt="" />
+                <el-input
+                  v-model="login.captcha"
+                  placeholder="验证码"
+                  prefix-icon="first-aid-kit"
+                />
+                <img
+                  style="vertical-align: middle; height: 40px; cursor: pointer"
+                  :src="state.captchaUrl"
+                  @click="onRefreshCode"
+                  alt=""
+                />
               </el-space>
             </el-form-item>
             <el-form-item label-width="0">
-              <el-button type="primary" size="small" :disabled="state.loading" @click="onLogin" class="rr-login-right-main-btn"> 登录 </el-button>
+              <el-button
+                type="primary"
+                size="small"
+                :disabled="state.loading"
+                @click="onLogin"
+                class="rr-login-right-main-btn"
+              >
+                登录
+              </el-button>
             </el-form-item>
           </el-form>
         </div>
       </div>
     </div>
     <div class="login-footer">
-      <p><a href="https://www.renren.io/enterprise" target="_blank">企业版</a> | <a href="https://www.renren.io/cloud" target="_blank">微服务版</a></p>
-      <p><a href="https://www.renren.io/" target="_blank">人人开源</a>{{ state.year }} © renren.io</p>
+      <p>
+        <a href="https://www.renren.io/enterprise" target="_blank">企业版</a> |
+        <a href="https://www.renren.io/cloud" target="_blank">微服务版</a>
+      </p>
+      <p>
+        <a href="https://www.renren.io/" target="_blank">人人开源</a>{{ state.year }} © renren.io
+      </p>
     </div>
   </div>
 </template>
@@ -43,7 +83,7 @@ import { setCache } from "@/utils/cache";
 import { ElMessage } from "element-plus";
 import { getUuid } from "@/utils/utils";
 import app from "@/constants/app";
-import SvgIcon from "@/components/base/svg-icon/index";
+// import SvgIcon from "@/components/base/svg-icon/index"; // 未使用，避免报错先去掉
 import { useAppStore } from "@/store";
 import { useRouter } from "vue-router";
 
@@ -53,22 +93,28 @@ const router = useRouter();
 const state = reactive({
   captchaUrl: "",
   loading: false,
-  year: new Date().getFullYear()
+  year: new Date().getFullYear(),
 });
 
-const login = reactive({ username: "", password: "", captcha: "", uuid: "" });
-
-onMounted(() => {
-  //清理数据
-  store.logout();
-  getCaptchaUrl();
+const login = reactive({
+  username: "",
+  password: "",
+  captcha: "",
+  uuid: "",
 });
+
 const formRef = ref();
 
 const rules = ref({
   username: [{ required: true, message: "必填项不能为空", trigger: "blur" }],
   password: [{ required: true, message: "必填项不能为空", trigger: "blur" }],
-  captcha: [{ required: true, message: "必填项不能为空", trigger: "blur" }]
+  captcha: [{ required: true, message: "必填项不能为空", trigger: "blur" }],
+});
+
+onMounted(() => {
+  // 清理数据
+  store.logout();
+  getCaptchaUrl();
 });
 
 const getCaptchaUrl = () => {
@@ -81,26 +127,30 @@ const onRefreshCode = () => {
 };
 
 const onLogin = () => {
-  formRef.value.validate((valid: boolean) => {
-    if (valid) {
-      state.loading = true;
-      baseService
-        .post("/login", login)
-        .then((res) => {
-          state.loading = false;
-          if (res.code === 0) {
-            const tokenData = typeof res.data === "string" ? { token: res.data } : res.data;
-            setCache(CacheToken, tokenData, true);
-            ElMessage.success("登录成功");
-            router.push("/");
-          } else {
-            ElMessage.error(res.msg);
-          }
-        })
-        .catch(() => {
-          state.loading = false;
-          onRefreshCode();
-        });
+  formRef.value?.validate(async (valid: boolean) => {
+    if (!valid) return;
+    state.loading = true;
+    try {
+      const res = await baseService.post("/login", login);
+      if (res.code === 0) {
+        const tokenData = typeof res.data === "string" ? { token: res.data } : res.data;
+        setCache(CacheToken, tokenData, true);
+        ElMessage.success("登录成功");
+
+        // 登录成功后立即初始化应用数据（权限/用户/菜单/字典）
+        await store.initApp();
+
+        // 再跳转首页，确保 user.id 已就绪
+        router.push("/");
+      } else {
+        ElMessage.error(res.msg || "登录失败");
+        onRefreshCode();
+      }
+    } catch (e) {
+      ElMessage.error("网络异常，请重试");
+      onRefreshCode();
+    } finally {
+      state.loading = false;
     }
   });
 };

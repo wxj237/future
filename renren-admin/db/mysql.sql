@@ -325,6 +325,14 @@ INSERT INTO sys_menu (id, pid, name, url, permissions, menu_type, icon, sort, cr
 INSERT INTO sys_menu (id, pid, name, url, permissions, menu_type, icon, sort, creator, create_date, updater, update_date) 
 VALUES (1067246875800000070, 0, '考勤管理', NULL, NULL, 0, 'icon-clock-circle', 4, 1067246875800000001, now(), 1067246875800000001, now());
 
+-- 定位签到子菜单
+INSERT INTO sys_menu (id, pid, name, url, permissions, menu_type, icon, sort, creator, create_date, updater, update_date) 
+VALUES (1067246875800000073, 1067246875800000070, '定位签到', 'attendance/sign', NULL, 0, 'icon-location', 0, 1067246875800000001, now(), 1067246875800000001, now());
+
+-- 定位签到按钮权限
+INSERT INTO sys_menu (id, pid, name, url, permissions, menu_type, icon, sort, creator, create_date, updater, update_date) 
+VALUES (1067246875800000074, 1067246875800000073, '签到', NULL, 'attendance:sign:record', 1, NULL, 0, 1067246875800000001, now(), 1067246875800000001, now());
+
 -- 每日计划子菜单
 INSERT INTO sys_menu (id, pid, name, url, permissions, menu_type, icon, sort, creator, create_date, updater, update_date) 
 VALUES (1067246875800000071, 1067246875800000070, '每日计划', 'attendance/daily-plan', NULL, 0, 'icon-calendar', 0, 1067246875800000001, now(), 1067246875800000001, now());
@@ -573,3 +581,81 @@ CREATE INDEX IDX_QRTZ_FT_TG ON QRTZ_FIRED_TRIGGERS(SCHED_NAME,TRIGGER_GROUP);
     PRIMARY KEY (id),
     UNIQUE KEY uk_student_id (student_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='登录名单表';
+
+  CREATE TABLE `attendance_geo` (
+    `id`          BIGINT(20) NOT NULL AUTO_INCREMENT,
+    `user_id`     BIGINT(20) NOT NULL COMMENT '用户ID',
+    `username`    VARCHAR(50) NOT NULL COMMENT '用户名快照',
+    `dept_name`   VARCHAR(100) DEFAULT NULL COMMENT '部门快照',
+    `latitude`    DECIMAL(10,6) NOT NULL COMMENT '纬度',
+    `longitude`   DECIMAL(10,6) NOT NULL COMMENT '经度',
+    `address`     VARCHAR(255) DEFAULT NULL COMMENT '地址（反地理编码/前端传）',
+    `sign_time`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '签到时间',
+    `in_range`    TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '是否在范围内(1是0否)',
+    `remark`      VARCHAR(255) DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_time` (`user_id`,`sign_time`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定位签到记录';
+
+  -- 建议：系统参数表（如已有 sys_params 可直接插入）
+  -- 记录地理围栏中心与半径（高德Key放到前端使用，后端只做距离判断即可）
+  INSERT INTO `sys_params`(`param_code`,`param_value`,`remark`) VALUES
+  ('ATTEND_GEO_CENTER','106.238545,29.998452','签到围栏中心点，经度在前'),
+  ('ATTEND_GEO_RADIUS','800','签到有效半径(米)');
+
+-- ① 允许 point_id 为空
+ALTER TABLE sign_in_record
+  MODIFY COLUMN point_id BIGINT NULL DEFAULT NULL;
+
+-- ② 给 longitude、latitude 增加默认值（图书馆坐标）
+ALTER TABLE sign_in_record
+  MODIFY COLUMN longitude DECIMAL(10,6) NOT NULL DEFAULT 106.238545,
+  MODIFY COLUMN latitude  DECIMAL(10,6) NOT NULL DEFAULT 29.998452;
+
+-- ③ （可选）给 result 设默认值为成功（1）
+ALTER TABLE sign_in_record
+  MODIFY COLUMN result TINYINT NOT NULL DEFAULT 1;
+
+-- 修改 sign_in_record 表的 id 为自增主键
+ALTER TABLE sign_in_record
+MODIFY COLUMN id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键';
+
+-- （可选）设置自增起始值
+ALTER TABLE sign_in_record AUTO_INCREMENT = 1;
+
+-- 插入测试数据（可删）
+INSERT INTO sign_in_record (user_id, point_id)
+VALUES (1, 101);
+
+-- 添加地址字段到签到记录表
+ALTER TABLE sign_in_record ADD COLUMN address VARCHAR(500) COMMENT '签到地址';
+
+SELECT * FROM sys_params WHERE param_code LIKE '%ATTEND%TIME%';
+
+-- ============================================================
+-- 周报表结构优化和字段扩展
+-- ============================================================
+
+-- 添加周报表缺失字段
+ALTER TABLE weekly_report
+ADD COLUMN weekly_summary text COMMENT '本周总结' AFTER end_date,
+ADD COLUMN next_week_plan text COMMENT '下周计划' AFTER weekly_summary,
+ADD COLUMN problems text COMMENT '存在问题' AFTER next_week_plan,
+ADD COLUMN suggestions text COMMENT '建议' AFTER problems;
+
+-- 重命名字段以匹配Java实体类
+ALTER TABLE weekly_report
+CHANGE COLUMN start_date week_start_date date COMMENT '周报开始日期',
+CHANGE COLUMN end_date week_end_date date COMMENT '周报结束日期';
+
+-- 迁移现有数据
+UPDATE weekly_report SET weekly_summary = content WHERE weekly_summary IS NULL;
+
+-- 删除旧的content字段
+ALTER TABLE weekly_report DROP COLUMN content;
+
+-- 添加索引优化查询性能
+ALTER TABLE weekly_report
+ADD INDEX idx_week_start_date (week_start_date),
+ADD INDEX idx_week_end_date (week_end_date),
+ADD INDEX idx_create_time (create_time);

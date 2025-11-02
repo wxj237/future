@@ -6,7 +6,8 @@ import { getToken } from "@/utils/cache";
  * 常用CRUD + download
  */
 export default {
-  delete(path: string, params: IObject): Promise<IHttpResponse> {
+  // 兼容 REST 风格：/path/:id 无请求体
+  delete(path: string, params?: IObject): Promise<IHttpResponse> {
     return http({
       url: path,
       data: params,

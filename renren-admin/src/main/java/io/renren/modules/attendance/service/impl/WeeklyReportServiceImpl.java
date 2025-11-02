@@ -5,282 +5,312 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import io.renren.modules.attendance.dao.WeeklyReportDao;
-import io.renren.modules.attendance.entity.WeeklyReportEntity;
 import io.renren.modules.attendance.dto.WeeklyReportDTO;
+import io.renren.modules.attendance.entity.WeeklyReportEntity;
 import io.renren.modules.attendance.service.WeeklyReportService;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-
-import java.text.SimpleDateFormat;
-import java.text.ParseException;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.WeekFields;
+import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-
-import com.alibaba.excel.EasyExcel;
-import com.alibaba.excel.write.style.column.LongestMatchColumnWidthStyleStrategy;
-import java.net.URLEncoder;
-import jakarta.servlet.http.HttpServletResponse;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service("weeklyReportService")
 public class WeeklyReportServiceImpl extends ServiceImpl<WeeklyReportDao, WeeklyReportEntity> implements WeeklyReportService {
 
+    private static final Logger log = LoggerFactory.getLogger(WeeklyReportServiceImpl.class);
+
     @Autowired
     private DataSource dataSource;
 
-    @Override
-    public WeeklyReportEntity getByUserIdAndWeek(Long userId, String weekStartDate) {
+    @Autowired
+    private WeeklyReportDao weeklyReportDao;
+
+    private static final DateTimeFormatter DF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    /** 将 ISO 周（2025-W41）解析为该周周一/周日 */
+    private LocalDate[] parseWeekToRange(String weekIso) {
         try {
-            QueryWrapper<WeeklyReportEntity> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("user_id", userId);
-
-            if (StringUtils.isNotBlank(weekStartDate)) {
-                try {
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-                    Date date = sdf.parse(weekStartDate);
-                    queryWrapper.eq("week_start_date", date);
-                } catch (ParseException e) {
-                    queryWrapper.apply("DATE_FORMAT(week_start_date, '%Y-%m-%d') = '" + weekStartDate + "'");
-                }
-            }
-
-            return this.getOne(queryWrapper);
+            if (StringUtils.isBlank(weekIso) || !weekIso.matches("\\d{4}-W\\d{2}")) return null;
+            int year = Integer.parseInt(weekIso.substring(0, 4));
+            int week = Integer.parseInt(weekIso.substring(6, 8));
+            LocalDate any = LocalDate.ofYearDay(year, 4).with(WeekFields.ISO.weekOfYear(), week);
+            LocalDate start = any.with(WeekFields.ISO.dayOfWeek(), 1);
+            LocalDate end = any.with(WeekFields.ISO.dayOfWeek(), 7);
+            return new LocalDate[]{start, end};
         } catch (Exception e) {
-            e.printStackTrace();
             return null;
         }
     }
 
-    private String getUsernameByUserId(Long userId) {
-        Connection conn = null;
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-        try {
-            conn = dataSource.getConnection();
-            String sql = "SELECT username FROM sys_user WHERE id = ?";
-            ps = conn.prepareStatement(sql);
-            ps.setLong(1, userId);
-            rs = ps.executeQuery();
+    /** 排序白名单（Entity 字段 -> DB 列） */
+    private String mapSortField(String f) {
+        if (StringUtils.isBlank(f)) return null;
+        switch (f) {
+            case "id": return "id";
+            case "userId": return "user_id";
+            case "weekStartDate": return "week_start_date";
+            case "weekEndDate": return "week_end_date";
+            case "createTime": return "create_time";
+            case "updateTime": return "update_time";
+            default: return null;
+        }
+    }
 
-            if (rs.next()) {
-                return rs.getString("username");
-            } else {
-                return "用户" + userId;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "未知用户";
-        } finally {
-            try {
-                if (rs != null) rs.close();
-                if (ps != null) ps.close();
-                if (conn != null) conn.close();
-            } catch (Exception e) {
-                e.printStackTrace();
+    /** 应用周/区间筛选（week 优先） */
+    private void applyDateFilter(QueryWrapper<WeeklyReportEntity> qw, String week, String startDate, String endDate) {
+        if (StringUtils.isNotBlank(week)) {
+            LocalDate[] r = parseWeekToRange(week);
+            if (r != null) {
+                qw.ge("week_start_date", java.sql.Date.valueOf(r[0]));
+                qw.le("week_end_date", java.sql.Date.valueOf(r[1]));
+                return;
             }
         }
+        if (StringUtils.isNotBlank(startDate)) {
+            try { qw.ge("week_start_date", java.sql.Date.valueOf(LocalDate.parse(startDate, DF))); }
+            catch (Exception ignore) { qw.apply("DATE(week_start_date) >= {0}", startDate); }
+        }
+        if (StringUtils.isNotBlank(endDate)) {
+            try { qw.le("week_end_date", java.sql.Date.valueOf(LocalDate.parse(endDate, DF))); }
+            catch (Exception ignore) { qw.apply("DATE(week_end_date) <= {0}", endDate); }
+        }
+    }
+
+    /** 应用排序（默认 create_time desc） */
+    private void applySort(QueryWrapper<WeeklyReportEntity> qw, String sortField, String sortOrder) {
+        String col = mapSortField(sortField);
+        boolean desc = !"asc".equalsIgnoreCase(sortOrder);
+        if (col != null) {
+            if (desc) qw.orderByDesc(col); else qw.orderByAsc(col);
+        } else {
+            qw.orderByDesc("create_time");
+        }
+    }
+
+    private String getUsernameByUserId(Long userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT username FROM sys_user WHERE id = ?")) {
+            ps.setLong(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getString(1);
+            }
+        } catch (Exception ignore) {}
+        return "用户" + userId;
+    }
+
+    @Override
+    public WeeklyReportEntity getByUserIdAndWeek(Long userId, String weekIso) {
+        QueryWrapper<WeeklyReportEntity> qw = new QueryWrapper<>();
+        qw.eq("user_id", userId);
+        LocalDate[] r = parseWeekToRange(weekIso);
+        if (r != null) {
+            qw.ge("week_start_date", java.sql.Date.valueOf(r[0]));
+            qw.le("week_end_date", java.sql.Date.valueOf(r[1]));
+        }
+        return this.getOne(qw);
     }
 
     @Override
     public Map<String, Object> getList(Map<String, Object> params) {
-        Map<String, Object> result = new HashMap<>();
-
+        Map<String, Object> out = new HashMap<>();
         try {
-            Integer page = params.get("page") != null ? Integer.parseInt(params.get("page").toString()) : 1;
-            Integer limit = params.get("limit") != null ? Integer.parseInt(params.get("limit").toString()) : 10;
+            int page = params.get("page") != null ? Integer.parseInt(params.get("page").toString()) : 1;
+            int limit = params.get("limit") != null ? Integer.parseInt(params.get("limit").toString()) : 10;
             Long userId = params.get("userId") != null ? Long.valueOf(params.get("userId").toString()) : null;
             String username = (String) params.get("username");
-            String weekStartDate = (String) params.get("weekStartDate");
+            String week = (String) params.get("week");
+            String startDate = (String) params.get("startDate");
+            String endDate = (String) params.get("endDate");
+            String sortField = (String) params.get("sortField");
+            String sortOrder = (String) params.get("sortOrder");
 
             IPage<WeeklyReportEntity> pageObj = new Page<>(page, limit);
+            QueryWrapper<WeeklyReportEntity> qw = new QueryWrapper<>();
 
-            QueryWrapper<WeeklyReportEntity> queryWrapper = new QueryWrapper<>();
-            queryWrapper.orderByDesc("create_time");
-
-            if (userId != null) {
-                queryWrapper.eq("user_id", userId);
-            }
-
+            if (userId != null) qw.eq("user_id", userId);
             if (StringUtils.isNotBlank(username)) {
-                queryWrapper.inSql("user_id",
-                        "SELECT id FROM sys_user WHERE username LIKE '%" + username + "%'");
+                qw.inSql("user_id", "SELECT id FROM sys_user WHERE username LIKE '%" + username + "%'");
             }
 
-            if (StringUtils.isNotBlank(weekStartDate)) {
-                try {
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-                    Date date = sdf.parse(weekStartDate);
-                    queryWrapper.eq("week_start_date", date);
-                } catch (ParseException e) {
-                    queryWrapper.apply("DATE_FORMAT(week_start_date, '%Y-%m-%d') = '" + weekStartDate + "'");
-                }
+            applyDateFilter(qw, week, startDate, endDate);
+            applySort(qw, sortField, sortOrder);
+
+            IPage<WeeklyReportEntity> res = this.page(pageObj, qw);
+
+            List<Map<String, Object>> list = new ArrayList<>();
+            for (WeeklyReportEntity e : res.getRecords()) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", e.getId());
+                m.put("userId", e.getUserId());
+                m.put("username", getUsernameByUserId(e.getUserId()));
+                m.put("weekStartDate", e.getWeekStartDate());
+                m.put("weekEndDate", e.getWeekEndDate());
+                m.put("weeklySummary", e.getWeeklySummary());
+                m.put("nextWeekPlan", e.getNextWeekPlan());
+                m.put("problems", e.getProblems());
+                m.put("suggestions", e.getSuggestions());
+                m.put("createTime", e.getCreateTime());
+                m.put("updateTime", e.getUpdateTime());
+                list.add(m);
             }
-
-            IPage<WeeklyReportEntity> resultPage = this.page(pageObj, queryWrapper);
-
-            List<WeeklyReportDTO> dtoList = new ArrayList<>();
-            for (WeeklyReportEntity entity : resultPage.getRecords()) {
-                WeeklyReportDTO dto = new WeeklyReportDTO();
-                dto.setId(entity.getId());
-                dto.setUserId(entity.getUserId());
-                dto.setWeekStartDate(entity.getWeekStartDate());
-                dto.setWeekEndDate(entity.getWeekEndDate());
-                dto.setWeeklySummary(entity.getWeeklySummary());
-                dto.setNextWeekPlan(entity.getNextWeekPlan());
-                dto.setProblems(entity.getProblems());
-                dto.setSuggestions(entity.getSuggestions());
-                dto.setCreateTime(entity.getCreateTime());
-                dto.setUpdateTime(entity.getUpdateTime());
-                dto.setUsername(getUsernameByUserId(entity.getUserId()));
-
-                dtoList.add(dto);
-            }
-
-            result.put("list", dtoList);
-            result.put("total", resultPage.getTotal());
-
+            out.put("list", list);
+            out.put("total", res.getTotal());
         } catch (Exception e) {
             e.printStackTrace();
-            result.put("list", null);
-            result.put("total", 0L);
+            out.put("list", Collections.emptyList());
+            out.put("total", 0);
         }
-
-        return result;
+        return out;
     }
 
     @Override
-    public void exportWeeklyReport(HttpServletResponse response, Map<String, Object> params) throws Exception {
+    public List<WeeklyReportDTO> list(Map<String, Object> params) {
         try {
-            // 获取要导出的数据
-            Map<String, Object> exportParams = new HashMap<>(params);
+            Long userId = params.get("userId") != null ? Long.valueOf(params.get("userId").toString()) : null;
+            String username = (String) params.get("username");
+            String week = (String) params.get("week");
+            String startDate = (String) params.get("startDate");
+            String endDate = (String) params.get("endDate");
+            String sortField = (String) params.get("sortField");
+            String sortOrder = (String) params.get("sortOrder");
 
-            // 根据导出范围设置分页参数
-            String exportScope = (String) exportParams.get("exportScope");
-            if ("current".equals(exportScope)) {
-                // 当前页数据，保留分页参数
-                if (exportParams.get("page") == null) {
-                    exportParams.put("page", 1);
+            QueryWrapper<WeeklyReportEntity> qw = new QueryWrapper<>();
+            if (userId != null) qw.eq("user_id", userId);
+            if (StringUtils.isNotBlank(username)) {
+                qw.inSql("user_id", "SELECT id FROM sys_user WHERE username LIKE '%" + username + "%'");
+            }
+
+            applyDateFilter(qw, week, startDate, endDate);
+            applySort(qw, sortField, sortOrder);
+
+            List<WeeklyReportEntity> list = this.list(qw);
+
+            // 添加日志记录
+            log.info("查询到周报数据 {} 条", list != null ? list.size() : 0);
+            log.debug("查询参数: userId={}, username={}, week={}, startDate={}, endDate={}", userId, username, week, startDate, endDate);
+
+            if (list == null) {
+                return new ArrayList<>();
+            }
+
+            return list.stream().map(e -> {
+                if (e == null) {
+                    return null;
                 }
-                if (exportParams.get("limit") == null) {
-                    exportParams.put("limit", 10);
-                }
-            } else {
-                // 全部数据，移除分页参数
-                exportParams.remove("page");
-                exportParams.remove("limit");
-            }
-
-            // 移除columns参数，避免影响查询
-            String columns = (String) exportParams.remove("columns");
-            exportParams.remove("exportScope");
-
-            Map<String, Object> result = getList(exportParams);
-            List<WeeklyReportDTO> dataList = (List<WeeklyReportDTO>) result.get("list");
-
-            if (dataList == null || dataList.isEmpty()) {
-                throw new Exception("没有数据可导出");
-            }
-
-            // 设置响应头
-            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-            response.setCharacterEncoding("utf-8");
-            String fileName = URLEncoder.encode("周报数据_" + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date()), "UTF-8");
-            response.setHeader("Content-Disposition", "attachment;filename=" + fileName + ".xlsx");
-
-            // 准备导出数据
-            List<ExportWeeklyReportVO> exportData = new ArrayList<>();
-            for (WeeklyReportDTO item : dataList) {
-                ExportWeeklyReportVO vo = new ExportWeeklyReportVO();
-                vo.setId(item.getId());
-                vo.setUserId(item.getUserId());
-                vo.setUsername(item.getUsername());
-                vo.setWeekStartDate(item.getWeekStartDate());
-                vo.setWeekEndDate(item.getWeekEndDate());
-                vo.setWeeklySummary(item.getWeeklySummary());
-                vo.setNextWeekPlan(item.getNextWeekPlan());
-                vo.setProblems(item.getProblems());
-                vo.setSuggestions(item.getSuggestions());
-                vo.setCreateTime(item.getCreateTime());
-                vo.setUpdateTime(item.getUpdateTime());
-                exportData.add(vo);
-            }
-
-            // 使用EasyExcel导出
-            EasyExcel.write(response.getOutputStream(), ExportWeeklyReportVO.class)
-                    .registerWriteHandler(new LongestMatchColumnWidthStyleStrategy()) // 自动列宽
-                    .sheet("周报数据")
-                    .doWrite(exportData);
-
+                WeeklyReportDTO d = new WeeklyReportDTO();
+                BeanUtils.copyProperties(e, d);
+                d.setUsername(getUsernameByUserId(e.getUserId()));
+                return d;
+            }).filter(java.util.Objects::nonNull).collect(Collectors.toList());
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new Exception("导出失败: " + e.getMessage());
+            log.error("获取周报列表失败", e);
+            log.error("查询参数: {}", params);
+            return new ArrayList<>();
         }
     }
 
-    // 内部导出VO类
-    public static class ExportWeeklyReportVO {
-        @com.alibaba.excel.annotation.ExcelProperty("ID")
-        private Long id;
+    @Override
+    public WeeklyReportEntity saveOrUpdateReturning(WeeklyReportEntity req) {
+        java.util.Date now = new java.util.Date();
+        if (req.getId() == null) req.setCreateTime(now);
+        req.setUpdateTime(now);
+        this.saveOrUpdate(req);
+        return this.getById(req.getId());
+    }
 
-        @com.alibaba.excel.annotation.ExcelProperty("用户ID")
-        private Long userId;
+    @Override
+    public WeeklyReportEntity saveOrUpsertForUserAndWeek(WeeklyReportEntity req) {
+        QueryWrapper<WeeklyReportEntity> qw = new QueryWrapper<>();
+        qw.eq("user_id", req.getUserId());
+        if (req.getWeekStartDate() != null) qw.eq("week_start_date", req.getWeekStartDate());
+        if (req.getWeekEndDate() != null) qw.eq("week_end_date", req.getWeekEndDate());
 
-        @com.alibaba.excel.annotation.ExcelProperty("用户名")
-        private String username;
+        WeeklyReportEntity exist = this.getOne(qw);
+        java.util.Date now = new java.util.Date();
 
-        @com.alibaba.excel.annotation.ExcelProperty("周开始日期")
-        private Date weekStartDate;
+        if (exist != null) {
+            exist.setWeeklySummary(req.getWeeklySummary());
+            exist.setNextWeekPlan(req.getNextWeekPlan());
+            exist.setProblems(req.getProblems());
+            exist.setSuggestions(req.getSuggestions());
+            exist.setUpdateTime(now);
+            this.updateById(exist);
+            return exist;
+        } else {
+            req.setCreateTime(now);
+            req.setUpdateTime(now);
+            this.save(req);
+            return req;
+        }
+    }
 
-        @com.alibaba.excel.annotation.ExcelProperty("周结束日期")
-        private Date weekEndDate;
+    // === 覆盖删除（不吞异常） ===
+    @Override
+    public boolean removeById(Serializable id) {
+        try {
+            WeeklyReportEntity entity = this.getById(id);
+            if (entity == null) {
+                return false;
+            }
 
-        @com.alibaba.excel.annotation.ExcelProperty("本周总结")
-        private String weeklySummary;
+            boolean result = super.removeById(id);
 
-        @com.alibaba.excel.annotation.ExcelProperty("下周计划")
-        private String nextWeekPlan;
+            if (result) {
+                WeeklyReportEntity after = this.getById(id);
+                if (after != null) {
+                    result = false;
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            // 不要吞异常；抛出去让 Controller 返回清晰 msg（如外键约束失败）
+            throw new RuntimeException(e);
+        }
+    }
 
-        @com.alibaba.excel.annotation.ExcelProperty("遇到的问题")
-        private String problems;
+    /** 直接SQL删除（物理删除；异常不吞） */
+    @Override
+    public boolean directDelete(Long id) {
+        try {
+            log.info("=== 使用直接SQL删除，ID: {} ===", id);
 
-        @com.alibaba.excel.annotation.ExcelProperty("建议")
-        private String suggestions;
+            WeeklyReportEntity entity = this.getById(id);
+            if (entity == null) {
+                log.warn("要删除的记录不存在，ID: {}", id);
+                return false;
+            }
 
-        @com.alibaba.excel.annotation.ExcelProperty("创建时间")
-        private Date createTime;
+            int affectedRows = weeklyReportDao.directDeleteById(id);
+            boolean result = affectedRows > 0;
 
-        @com.alibaba.excel.annotation.ExcelProperty("更新时间")
-        private Date updateTime;
-
-        // getter setter 方法
-        public Long getId() { return id; }
-        public void setId(Long id) { this.id = id; }
-        public Long getUserId() { return userId; }
-        public void setUserId(Long userId) { this.userId = userId; }
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public Date getWeekStartDate() { return weekStartDate; }
-        public void setWeekStartDate(Date weekStartDate) { this.weekStartDate = weekStartDate; }
-        public Date getWeekEndDate() { return weekEndDate; }
-        public void setWeekEndDate(Date weekEndDate) { this.weekEndDate = weekEndDate; }
-        public String getWeeklySummary() { return weeklySummary; }
-        public void setWeeklySummary(String weeklySummary) { this.weeklySummary = weeklySummary; }
-        public String getNextWeekPlan() { return nextWeekPlan; }
-        public void setNextWeekPlan(String nextWeekPlan) { this.nextWeekPlan = nextWeekPlan; }
-        public String getProblems() { return problems; }
-        public void setProblems(String problems) { this.problems = problems; }
-        public String getSuggestions() { return suggestions; }
-        public void setSuggestions(String suggestions) { this.suggestions = suggestions; }
-        public Date getCreateTime() { return createTime; }
-        public void setCreateTime(Date createTime) { this.createTime = createTime; }
-        public Date getUpdateTime() { return updateTime; }
-        public void setUpdateTime(Date updateTime) { this.updateTime = updateTime; }
+            if (result) {
+                WeeklyReportEntity afterDelete = this.getById(id);
+                if (afterDelete != null) {
+                    log.error("=== 直接SQL删除验证失败，记录仍然存在 ===");
+                    result = false;
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            log.error("直接SQL删除异常", e);
+            // 抛出给 Controller，让前端能看到具体 msg
+            throw new RuntimeException(e);
+        }
     }
 }

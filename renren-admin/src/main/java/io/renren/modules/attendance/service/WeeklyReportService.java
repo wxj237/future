@@ -1,25 +1,28 @@
 package io.renren.modules.attendance.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import io.renren.modules.attendance.dto.WeeklyReportDTO;
 import io.renren.modules.attendance.entity.WeeklyReportEntity;
+import java.util.List;
 import java.util.Map;
-import jakarta.servlet.http.HttpServletResponse;
 
 public interface WeeklyReportService extends IService<WeeklyReportEntity> {
-    /**
-     * 根据用户ID和周日期获取周报
-     */
-    WeeklyReportEntity getByUserIdAndWeek(Long userId, String weekStartDate);
 
-    /**
-     * 获取周报列表
-     */
+    /** 用户 + ISO 周（如 2025-W41）查单条 */
+    WeeklyReportEntity getByUserIdAndWeek(Long userId, String weekIso);
+
+    /** 分页返回：list + total */
     Map<String, Object> getList(Map<String, Object> params);
 
-    /**
-     * 导出周报数据
-     * @param response HTTP响应
-     * @param params 查询参数
-     */
-    void exportWeeklyReport(HttpServletResponse response, Map<String, Object> params) throws Exception;
+    /** 导出列表（不分页） */
+    List<WeeklyReportDTO> list(Map<String, Object> params);
+
+    /** 保存或更新（返回最新实体） */
+    WeeklyReportEntity saveOrUpdateReturning(WeeklyReportEntity req);
+
+    /** 以 userId + weekStartDate/weekEndDate 幂等 upsert */
+    WeeklyReportEntity saveOrUpsertForUserAndWeek(WeeklyReportEntity req);
+
+    /** 直接SQL删除方法（物理删除，绕过逻辑删除/插件） */
+    boolean directDelete(Long id);
 }

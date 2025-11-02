@@ -2,6 +2,7 @@ import vue from "@vitejs/plugin-vue";
 import { resolve } from "path";
 import { defineConfig, loadEnv, UserConfig, UserConfigExport } from "vite";
 import { createHtmlPlugin } from "vite-plugin-html";
+import { createHtmlPlugin } from "vite-plugin-html";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { createSvgIconsPlugin } from "vite-plugin-svg-icons";
 

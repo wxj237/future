@@ -23,13 +23,13 @@ interface dynamicRouteParams {
 NProgress.configure({ showSpinner: false });
 
 const router = createRouter({
-  history: createWebHashHistory(), //createWebHashHistory() hash模式
+  history: createWebHashHistory(), // hash 模式
   routes: baseRoutes
 });
 
 // 路由加载前
 router.beforeEach((to, from, next) => {
-  //外链
+  // 外链
   if (to.meta.isNewPage) {
     if (to.query.pop !== "true") {
       next(undefined);
@@ -39,10 +39,10 @@ router.beforeEach((to, from, next) => {
 
   const store = useAppStore();
 
-  //token
   const token = getToken();
-  const isPop = to.query.pop === "true"; //新窗口打开内页
+  const isPop = to.query.pop === "true"; // 新窗口打开内页
   NProgress.start();
+
   if (to.path !== "/login") {
     if (store.state.routes.length) {
       if (to.name === "error") {
@@ -55,7 +55,7 @@ router.beforeEach((to, from, next) => {
         if (!to.query.pop) {
           const routeMeta: IObject = store.state.routeToMeta[to.path];
           emits.emit(EMitt.OnPushMenuToTabs, {
-            label: to.query._mt || routeMeta.title || to.path,
+            label: (to.query._mt as string) || routeMeta.title || to.path,
             value: to.fullPath,
             mete: routeMeta
           });
@@ -69,23 +69,27 @@ router.beforeEach((to, from, next) => {
           const mergeRoute = baseRoutes.concat(res);
           router.options.routes = mergeRoute;
           registerToRouter(router, mergeRoute);
+
           if (!to.matched.length) {
-            registerDynamicToRouterAndNext({ path: to.path, query: to.query });
+            registerDynamicToRouterAndNext({ path: to.path, query: to.query as IObject });
           }
+
           store.updateState({
             appIsReady: true,
             routes: mergeRoute,
             routeToMeta: { ...store.state.routeToMeta, ...getBaseRouteToMeta(baseRoutes) }
           });
+
           setTimeout(() => {
             store.updateState({ appIsRender: true, appIsLogin: true });
           }, 600);
+
           next({ ...to, replace: true });
         });
       } else {
         if (isPop) {
           if (!to.matched.length) {
-            registerDynamicToRouterAndNext({ path: to.path, query: to.query });
+            registerDynamicToRouterAndNext({ path: to.path, query: to.query as IObject });
             store.updateState({ appIsRender: true, appIsReady: true });
             next(to.fullPath);
           } else {
@@ -114,7 +118,6 @@ router.afterEach(() => {
 
 /**
  * 获取系统视图路径映射
- * @returns
  */
 export const getSysRouteMap = (): IObject => {
   return import.meta.glob("/src/views/**/*.vue");
@@ -122,17 +125,14 @@ export const getSysRouteMap = (): IObject => {
 
 /**
  * 根据路由path转换为系统视图组件路径
- * @param path
- * @returns
  */
 export const toSysViewComponentPath = (path: string): string => {
   path = path.replace("_", "-");
   return `/src/views${path}.vue`;
 };
+
 /**
  * 自动注册路由
- * @param to
- * @returns
  */
 const autoRegisterDynamicToRouterAndNext = (to: RouteLocationNormalized): boolean => {
   if (to.redirectedFrom) {
@@ -140,12 +140,7 @@ const autoRegisterDynamicToRouterAndNext = (to: RouteLocationNormalized): boolea
     const component = matchedSysRouteComponent(path);
     if (component) {
       registerToRouter(router, [
-        {
-          path: path,
-          name: path,
-          component,
-          redirect: ""
-        }
+        { path, name: path, component, redirect: "" }
       ]);
       router.push(to.redirectedFrom);
       return true;
@@ -156,8 +151,6 @@ const autoRegisterDynamicToRouterAndNext = (to: RouteLocationNormalized): boolea
 
 /**
  * 寻找视图组件
- * @param path
- * @returns
  */
 const matchedSysRouteComponent = (path: string): any => {
   const sysRouteMap = getSysRouteMap();
@@ -170,7 +163,6 @@ const matchedSysRouteComponent = (path: string): any => {
 
 /**
  * 实时注册动态路由并直接跳转过去
- * @param route
  */
 export const registerDynamicToRouterAndNext = (route: dynamicRouteParams): void => {
   const component = matchedSysRouteComponent(route.path);
@@ -178,10 +170,10 @@ export const registerDynamicToRouterAndNext = (route: dynamicRouteParams): void 
     path: route.path,
     name: route.path,
     component,
-    redirect: !component ? { path: "/error", query: { to: 404 }, replace: true } : ""
+    redirect: !component ? { path: "/error", query: { to: 404 }, replace: true } as any : ""
   };
   registerToRouter(router, [newRoute]);
-  router.push(route);
+  router.push(route as any);
 };
 
 export default router;
