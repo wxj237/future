@@ -124,3 +124,20 @@ renren-security
 - 如需关注项目最新动态，请Watch、Star项目，同时也是对项目最好的支持
 <br>
 
+---
+
+## 📦 数据库脚本说明：`attendance_systemwanzhengban.sql`
+
+> 这是从 Navicat 转储出来的 **完整库脚本**（包含**表结构 + 数据**）。  
+> 体积较大，并且包含部分测试/演示数据，仅建议用于**本地开发与演示**；**生产环境请谨慎使用**。
+
+### 🛠️ 如何导入
+
+**方式 A｜命令行（MySQL 客户端）**
+```bash
+# 先在 MySQL 中创建数据库（自定义库名）
+CREATE DATABASE your_database_name DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+
+# 导入脚本（Windows 示例）
+mysql -u root -p your_database_name < ./attendance_systemwanzhengban.sql
+##其实只要把admin目录下db中mysql.sql的内容换成attendance_systemwanzhengban.sql文件内容即可
